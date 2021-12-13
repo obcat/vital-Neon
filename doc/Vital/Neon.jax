@@ -1,0 +1,192 @@
+*Vital/Neon.jax*	テキストをピカピカと光らせる
+						Last change: 2021 Dec 10
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+書いた人  : obcat <obcat@icloud.com>
+ライセンス: NYSL Version 0.9982
+
+要件      : Vim 8.2.3591 かそれ以降のバージョン
+            |vital.vim| <https://github.com/vim-jp/vital.vim>
+
+
+==============================================================================
+目次						*Vital.Neon-contents*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+はじめに		|Vital.Neon-introduction|
+用語			|Vital.Neon-terms|
+インターフェイス	|Vital.Neon-interface|
+  関数			  |Vital.Neon-functions|
+例			|Vital.Neon-examples|
+
+
+==============================================================================
+はじめに					*Vital.Neon-introduction*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+*Vital.Neon* は |vital.vim| の外部モジュールです。テキストをピカピカと光らせる
+のに使えます。
+
+例えば次のスクリプトを読み込むと、カレントウィンドウの 7 から 9 行目が最初の
+100 ミリ秒間は |hl-DiffAdd| で、次の 200 ミリ秒間は |hl-DiffChange| で、最後の
+の 300 ミリ秒間は |hl-DiffDelete| でハイライトされます:
+>
+	let s:Neon = vital#{plugin-name}#import('Neon')
+	let s:flow = [
+	      \   ['DiffAdd', 100],
+	      \   ['DiffChange', 200],
+	      \   ['DiffDelete', 300],
+	      \ ]
+	call s:Neon.add(s:flow, [7, 8, 9])
+<
+{plugin-name} については |Vital-term-plugin-name| を参照。
+さらなる例については |Vital.Neon-examples| を参照してください。
+
+
+==============================================================================
+用語							*Vital.Neon-terms*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+ネオン						*Vital.Neon-terms-neon*
+	時間の経過に伴って色が変化するマッチ (マッチについては |:match|,
+	|matchadd()|, |matchaddpos()| 等を参照)。
+
+フロー {flow}					*Vital.Neon-terms-flow*
+	ネオンの色の変化を定義するのに使う、ハイライトグループとその持続時間
+	(ms) のペアからなるリスト |List|。例: >
+		[ ['DiffAdd', 100],
+		\ ['DiffChange', 200],
+		\ ['DiffDelete', 300] ]
+<	持続時間に負数を指定した場合、無限時間という意味になります。
+
+
+==============================================================================
+インターフェイス					*Vital.Neon-interface*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+
+------------------------------------------------------------------------------
+関数							*Vital.Neon-functions*
+
+							*Vital.Neon.add()*
+add({flow}, {target} [, {options}])
+	カレントウィンドウにネオンを定義します。つまり、カレントウィンドウの特
+	定のテキストをフロー {flow} にしたがってピカピカと光らせます。
+
+	戻り値はネオンを識別する ID (> 0) です。|Vital.Neon.delete()| でこの
+	ID を指定してネオンを削除できます。
+
+	光らせるテキストは {target} で指定します。
+	{target} が文字列 |String| の場合: {target} はパターン |pattern| とみ
+	なされ、そのパターンにマッチするテキストが対象となります。パターンの扱
+	われ方については |matchadd()| の第二引数の説明を参照してください。
+	{target} がリスト |List| の場合: {target} は位置のリストとみなされ、そ
+	の位置にあるテキストが対象となります。有効な値は |matchaddpos()| の第
+	二引数と同様ですが、指定できる位置の個数に上限はありません。
+	{target} が文字列でもリストでもない場合はエラーになります。
+
+	{options} は辞書 |Dictionary| です。有効な項目:
+		window		カレントウィンドウの代わりに、このウィンドウに
+				ネオンを定義します。ウィンドウ番号または
+				|window-ID| が使用可能です。0 はカレントウィン
+				ドウを意味します。
+		repeat		{flow} を再生する回数。デフォルトは 1 です。負
+				数は無限回を意味します。0 が指定されるとエラー
+				になります。
+		callback	ネオンが削除された直後に呼び出されるコールバッ
+				ク。関数参照 |Funcref| で指定してください。次
+				の二つの引数で呼び出されます:
+				1. ネオンの ID。
+				2. 削除されたコンテキスト。{options.repeat} 回
+				   の {flow} の再生が終了し自動的に削除された
+				   場合は数値の 0 に、{flow} の再生中にネオン
+				   の定義されているウィンドウが閉じられた場合
+				   は数値の 1 になります。
+				   |Vital.Neon.delete()| で削除された場合につ
+				   いてはリンク先を参照してください。
+		priority	|matchadd()| を参照。
+		conceal		上に同じ。
+
+							*Vital.Neon.delete()*
+delete({id} [, {context}])
+	|Vital.Neon.add()| によって定義されたネオンの中で ID が {id} であるも
+	のを削除します。
+	ネオンがコールバックを持つ場合、削除された直後に呼び出されます。
+	{context} が指定された場合、コールバックの第二引数として渡されます。そ
+	うでなければ数値の 2 が渡されます。
+
+						*Vital.Neon.clear_all()*
+clear_all()
+	|Vital.Neon.add()| によって定義されたネオンを全て削除します。これはデ
+	バッグやテストのためのものです。|Vital.Neon| を使用している他のスクリ
+	プトに影響を与える可能性があるため、通常は使用すべきではありません。
+	ネオンのコールバックは (もしあったとしても) 呼び出されません。
+
+
+==============================================================================
+例							*Vital.Neon-examples*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+最後の検索パターンにマッチするテキストを延々と点滅させる:
+>
+	let s:blink_flow = [
+	      \   ['Search', 300],
+	      \   ['NONE', 300],
+	      \ ]
+	call s:Neon.add(s:blink_flow, @/, {'repeat': -1})
+<
+カーソル行のテキストをじわじわとハイライトするマッピングを作る:
+>
+	highlight MyGlow1 ctermbg=236 guibg=#161821
+	highlight MyGlow2 ctermbg=237 guibg=#222428
+	highlight MyGlow3 ctermbg=238 guibg=#2e3130
+	highlight MyGlow4 ctermbg=239 guibg=#393d37
+	highlight MyGlow5 ctermbg=240 guibg=#45493e
+	let s:glow_flow = [
+	      \   ['MyGlow1', 200],
+	      \   ['MyGlow2', 200],
+	      \   ['MyGlow3', 200],
+	      \   ['MyGlow4', 200],
+	      \   ['MyGlow5', -1],
+	      \ ]
+	function s:glow_cursorline() abort
+	  let cursorlnum = line('.')
+	  call s:Neon.add(s:glow_flow, [cursorlnum])
+	endfunction
+	nnoremap <F7> <Cmd>call <SID>glow_cursorline()<CR>
+<
+オペレータ |=| でインデントした行をピカッと光らせる:
+>
+	highlight MyFlash1 ctermbg=240 guibg=#384851
+	highlight MyFlash2 ctermbg=239 guibg=#303c45
+	highlight MyFlash3 ctermbg=238 guibg=#273039
+	highlight MyFlash4 ctermbg=237 guibg=#1f242d
+	highlight MyFlash5 ctermbg=236 guibg=#161821
+	let s:flash_flow = [
+	      \   ['MyFlash1', 50],
+	      \   ['MyFlash2', 50],
+	      \   ['MyFlash3', 50],
+	      \   ['MyFlash4', 50],
+	      \   ['MyFlash5', 50],
+	      \ ]
+	function s:set_operatorfunc() abort
+	  let &operatorfunc = get(funcref('s:hl_indent'), 'name')
+	  return ''
+	endfunction
+	function s:hl_indent(_) abort
+	  normal! =g']
+	  call s:Neon.add(s:flash_flow, range(line("'["), line("']")))
+	endfunction
+	nnoremap <expr> = <SID>set_operatorfunc() .. 'g@'
+	xnoremap <expr> = <SID>set_operatorfunc() .. 'g@'
+<
+
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

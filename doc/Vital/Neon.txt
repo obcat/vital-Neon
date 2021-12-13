@@ -1,0 +1,193 @@
+*Vital/Neon.jax*	Highlight text dynamically
+						Last change: 2021 Dec 10
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+Author : obcat <obcat@icloud.com>
+License: NYSL Version 0.9982
+
+Requirements: Vim 8.2.3591 or later
+              |vital.vim| <https://github.com/vim-jp/vital.vim>
+
+
+==============================================================================
+CONTENTS						*Vital.Neon-contents*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+INTRODUCTION	|Vital.Neon-introduction|
+TERMS		|Vital.Neon-terms|
+INTERFACE	|Vital.Neon-interface|
+  FUNCTIONS	  |Vital.Neon-functions|
+EXAMPLES	|Vital.Neon-examples|
+
+
+==============================================================================
+INTRODUCTION					*Vital.Neon-introduction*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+*Vital.Neon* is an external module of |vital.vim|.  This is useful to
+highlight text dynamically.
+
+For example, if you |:source| the following script, lines 7 to 9 of the
+current window will be highlighted with |hl-DiffAdd| for the first 100
+milliseconds, |hl-DiffChange| for the next 200 milliseconds, and
+|hl-DiffDelete| for the last 300 milliseconds:
+>
+	let s:Neon = vital#{plugin-name}#import('Neon')
+	let s:flow = [
+	      \   ['DiffAdd', 100],
+	      \   ['DiffChange', 200],
+	      \   ['DiffDelete', 300],
+	      \ ]
+	call s:Neon.add(s:flow, [7, 8, 9])
+<
+For {plugin-name} see |Vital-term-plugin-name|.
+For more examples see |Vital.Non-examples|.
+
+
+==============================================================================
+TERMS							*Vital.Neon-terms*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+Neon						*Vital.Neon-terms-neon*
+	A set of matches which changes own highlighting color with time.  See
+	|:match|, |matchadd()|, and |matchaddpos()| for match.
+
+Flow {flow}					*Vital.Neon-terms-flow*
+	A |List| of "highlight group and duration (ms)" pairs.  Used to define
+	how the color of a neon is changed with time.  Example: >
+		[ ['DiffAdd', 100],
+		\ ['DiffChange', 200],
+		\ ['DiffDelete', 300] ]
+<	A negative duration means infinite duration.
+
+
+==============================================================================
+INTERFACE						*Vital.Neon-interface*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+
+------------------------------------------------------------------------------
+FUNCTIONS						*Vital.Neon-functions*
+
+							*Vital.Neon.add()*
+add({flow}, {target} [, {options}])
+	Defines a neon in the current window.  In other words, highlights
+	specific text in the current window by playing flow {flow}.
+
+	The return value is an ID which identifies the defined neon.  You can
+	delete the neon by passing the ID to |Vital.Neon.delete()|.
+
+	{target} is used to determine the text to be highlighted.
+	If {target} is a |String|: it is assumed as a |pattern| and the text
+	that matches the pattern will be highlighted.  See the description of
+	the second argument of |matchadd()| for the pattern handling.
+	If {target} is a |List|: it is assumed as a list of positions and the
+	text located in the positions will be highlighted.  Valid values are
+	same as the second argument of |matchaddpos()|, but there is no
+	limitation upon the number of the positions in the list.
+	If {target} is neither a list nor a string, an error will be given.
+
+	{options} is a |Dictionary|.  Valid entries are:
+		window		Defines the neon in this window instead of the
+				current window.  A window number or a
+				|window-ID| can be used.  Zero means the
+				current window.
+		repeat		Number of times to repeat playing {flow}.
+				Default is one.  Negative value means infinite.
+				Zero results in an error.
+		callback	A callback that is called just after the neon
+				is deleted.  Must be a |Funcref|.  The
+				callback is called with two arguments:
+				1. The neon ID.
+				2. A context that indicates when the neon is
+				   deleted.  After playing {flow}
+				   {options.repeat} times, the value is
+				   |Number| zero.  When the window in which
+				   the neon was defined was closed, the value
+				   is |Number| one.  See the link for the case
+				   when deleted by |Vital.Neon.delete()|.
+		priority	See |matchadd()|.
+		conceal		Ditto.
+
+							*Vital.Neon.delete()*
+delete({id} [, {context}])
+	Deletes a neon with ID {id} previously defined by |Vital.Neon.add()|.
+	If the neon has a callback, it will be called just after the neon is
+	deleted.  If the optional {context} is specified, it will be passed as
+	the second argument of the callback.  Otherwise, the |Number| two is
+	passed.
+
+						*Vital.Neon.clear_all()*
+clear_all()
+	Clears all neons previously defined by |Vital.Neon.add()|.
+	This is for debugging and testing.  Be careful using this, it may
+	break other scripts using this module.
+	Delete callbacks are not invoked.
+
+==============================================================================
+EXAMPLES						*Vital.Neon-examples*
+
+THIS IS STILL UNDER DEVELOPMENT - ANYTHING CAN BREAK - ANYTHING CAN CHANGE
+
+Blink text that matches the last search pattern endlessly:
+>
+	let s:blink_flow = [
+	      \   ['Search', 300],
+	      \   ['NONE', 300],
+	      \ ]
+	call s:Neon.add(s:blink_flow, @/, {'repeat': -1})
+<
+Create a mapping that glows the text on the cursor line.
+>
+	highlight MyGlow1 ctermbg=236 guibg=#161821
+	highlight MyGlow2 ctermbg=237 guibg=#222428
+	highlight MyGlow3 ctermbg=238 guibg=#2e3130
+	highlight MyGlow4 ctermbg=239 guibg=#393d37
+	highlight MyGlow5 ctermbg=240 guibg=#45493e
+	let s:glow_flow = [
+	      \   ['MyGlow1', 200],
+	      \   ['MyGlow2', 200],
+	      \   ['MyGlow3', 200],
+	      \   ['MyGlow4', 200],
+	      \   ['MyGlow5', -1],
+	      \ ]
+	function s:glow_cursorline() abort
+	  let cursorlnum = line('.')
+	  call s:Neon.add(s:glow_flow, [cursorlnum])
+	endfunction
+	nnoremap <F7> <Cmd>call <SID>glow_cursorline()<CR>
+<
+Create a mapping that flashes the lines indented by `=` operator:
+>
+	highlight MyFlash1 ctermbg=240 guibg=#384851
+	highlight MyFlash2 ctermbg=239 guibg=#303c45
+	highlight MyFlash3 ctermbg=238 guibg=#273039
+	highlight MyFlash4 ctermbg=237 guibg=#1f242d
+	highlight MyFlash5 ctermbg=236 guibg=#161821
+	let s:flash_flow = [
+	      \   ['MyFlash1', 50],
+	      \   ['MyFlash2', 50],
+	      \   ['MyFlash3', 50],
+	      \   ['MyFlash4', 50],
+	      \   ['MyFlash5', 50],
+	      \ ]
+	function s:set_operatorfunc() abort
+	  let &operatorfunc = get(funcref('s:hl_indent'), 'name')
+	  return ''
+	endfunction
+	function s:hl_indent(_) abort
+	  normal! =g']
+	  call s:Neon.add(s:flash_flow, range(line("'["), line("']")))
+	endfunction
+	nnoremap <expr> = <SID>set_operatorfunc() .. 'g@'
+	xnoremap <expr> = <SID>set_operatorfunc() .. 'g@'
+<
+
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,0 +1,441 @@
+Describe Neon
+  Before all
+    let Neon = vital#vital#import('Neon')
+    function GetPatternTypeMatches(pattern, window = 0)
+      return filter(getmatches(a:window), { _, match ->  match.pattern ==# a:pattern })
+    endfunction
+  End
+
+  After all
+    delfunction GetPatternTypeMatches
+  End
+
+  After each
+    call Neon.clear_all()
+  End
+
+  Describe .add({flow}, {target} [, {options}])
+    It plays {flow}
+      call Neon.add([['Foo', 1000], ['Bar', 1500], ['Baz', 2000]], 'some')
+
+      " 0m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Foo')
+
+      sleep 200m  " 200m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Foo')
+
+      sleep 600m  " 800m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Foo')
+
+      sleep 400m  " 1200m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Bar')
+
+      sleep 1100m  " 2300m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Bar')
+
+      sleep 400m  " 2700m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Baz')
+
+      sleep 1600m  " 4300m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 1)
+      let hl_group = hlget(matches[0]['group'])[0]['linksto']
+      Assert Equals(hl_group, 'Baz')
+
+      sleep 400m  " 4700m
+      let matches = GetPatternTypeMatches('some')
+      Assert LengthOf(matches, 0)
+    End
+
+    Context when {flow} durations are all zero
+      It spews an error
+        Throw /^vital: Neon: Invalid flow: \[\['Foo', 0\], \['Bar', 0\], \['Baz', 0\]\]$/ Neon.add([['Foo', 0], ['Bar', 0], ['Baz', 0]], 'some')
+      End
+    End
+
+    Context when {flow} has an item that has a negative duration
+      It considers it as an infinite duration
+        call Neon.add([['Foo', -1]], 'foo')
+        sleep 1000m
+        Assert LengthOf(GetPatternTypeMatches('foo'), 1)
+        sleep 1000m
+        Assert LengthOf(GetPatternTypeMatches('foo'), 1)
+        sleep 1000m
+        Assert LengthOf(GetPatternTypeMatches('foo'), 1)
+        " ...
+      End
+    End
+
+    Context when {target} is a String
+      It adds a pattern-type match (by using matchadd() internally)
+        call Neon.add([['Foo', 100]], 'foo')
+        Assert LengthOf(filter(getmatches(), 'has_key(v:val, "pattern")'), 1)
+      End
+    End
+
+    Context when {target} is a List
+      Context when len({target}) <= 8
+        It adds a position-type match (by using matchaddpos() internally)
+          call Neon.add([['Foo', 100]], [1])
+          Assert LengthOf(filter(getmatches(), 'has_key(v:val, "pos1")'), 1)
+        End
+      End
+      Context when len({target}) > 8
+        It adds several position-type matches (by using matchaddpos() several time internally)
+          call Neon.add([['Foo', 100]], [1, 2, 3, 4, 5, 6, 7, 8, 9])
+          Assert LengthOf(filter(getmatches(), 'has_key(v:val, "pos1")'), 2)
+        End
+      End
+    End
+
+    Context when {target} is neither a String nor a List
+      It spews an error
+        Throws /^vital: Neon: Target must be a String or a List: / Neon.add([['Foo', 100]], {})
+      End
+    End
+
+    Context when {options.window} is specified
+      Context when {options.window} is zero
+        It adds a match to the current window
+          Assert LengthOf(getmatches(), 0)
+          call Neon.add([['Foo', 100]], 'foo')
+          Assert LengthOf(getmatches(), 1)
+        End
+      End
+
+      Context when {options.window} is a window number
+        It adds a match to the window
+          new
+          Assert LengthOf(getmatches(2), 0)
+          call Neon.add([['Foo', 100]], 'foo', {'window': 2})
+          Assert LengthOf(getmatches(2), 1)
+          close
+        End
+      End
+
+      Context when {options.window} is a window ID
+        It adds a match to the window
+          new
+          let winid = win_getid(2)
+          Assert LengthOf(getmatches(winid), 0)
+          call Neon.add([['Foo', 100]], 'foo', {'window': winid})
+          Assert LengthOf(getmatches(winid), 1)
+          close
+        End
+      End
+    End
+
+    Context when {options.repeat} is specified
+      Context when {options.repeat} is positive
+        It plays {flow} {options.repeat} times
+          call Neon.add([['Foo', 400], ['Bar', 400]], 'some', {'repeat': 3})
+
+          sleep 200m  " 200m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          sleep 400m  " 600m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Bar')
+
+          sleep 400m  " 1000m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          sleep 400m  " 1400m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Bar')
+
+          sleep 400m  " 1800m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          sleep 400m  " 2200m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Bar')
+
+          sleep 400m  " 2600m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 0)
+        End
+      End
+
+      Context when {options.repeat} is negative
+        It plays {flow} infinite times
+          call Neon.add([['Foo', 400], ['Bar', 400]], 'some', {'repeat': -1})
+
+          sleep 200m  " 200m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          sleep 400m  " 600m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Bar')
+
+          sleep 400m  " 1000m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          sleep 400m  " 1400m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Bar')
+
+          sleep 400m  " 1800m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          sleep 400m  " 2200m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Bar')
+
+          sleep 400m  " 2600m
+          let matches = GetPatternTypeMatches('some')
+          Assert LengthOf(matches, 1)
+          let hl_group = hlget(matches[0]['group'])[0]['linksto']
+          Assert Equals(hl_group, 'Foo')
+
+          " ...
+        End
+      End
+
+      Context when {options.repeat} is zero
+        It spews an error
+          Throw /^vital: Neon: Repeat option must be a non-zero number: 0$/ Neon.add([['Foo', 100]], 'some', {'repeat': 0})
+        End
+      End
+    End
+
+    Context when {options.callback} is specified
+      Before all
+        function s:callback(id, context) abort
+          let g:id = a:id
+          let g:context = a:context
+        endfunction
+      End
+
+      After all
+        delfunction s:callback
+        unlet! g:id
+        unlet! g:context
+      End
+
+      Context after the neon is deleted after playing {flow}
+        It invokes the callback with right arguments
+          let id = Neon.add([['Foo', 100]], 'foo', {'callback': funcref('s:callback')})
+          sleep 200m
+          Assert Equals(g:id, id)
+          Assert Equals(g:context, 0)
+        End
+      End
+
+      Context after the window is closed
+        It invokes the callback with right arguments
+          new
+          let id = Neon.add([['Foo', 100]], 'foo', {'callback': funcref('s:callback')})
+          close
+          Assert Equals(g:id, id)
+          Assert Equals(g:context, 1)
+        End
+      End
+    End
+
+    Context when {options.priority} is specified
+      It adds a match having the priority
+        call Neon.add([['Foo', 100]], 'foo', {'priority': 123})
+        let matches = GetPatternTypeMatches('foo')
+        Assert LengthOf(matches, 1)
+        Assert Equals(matches[0]['priority'], 123)
+      End
+    End
+
+    Context when {options.conceal} is specified
+      It adds a match having the conceal character
+        call Neon.add([['Foo', 100]], 'foo', {'conceal': 'x'})
+        let matches = GetPatternTypeMatches('foo')
+        Assert LengthOf(matches, 1)
+        Assert Equals(matches[0]['conceal'], 'x')
+      End
+    End
+
+    It returns a minimum positive free id
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 1)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 2)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 3)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 4)
+      call Neon.delete(2)
+      call Neon.delete(3)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 2)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 3)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 5)
+      Assert Equals(Neon.add([['Foo', 100]], 'foo'), 6)
+    End
+
+    Context after the window is closed
+      It cleans up internal stuffs
+        new
+        let id = Neon.add([['Foo', 100]], 'foo')
+        Assert HasKey(hlget('VitalNeon' .. id)[0], 'linksto')
+        Assert LengthOf(timer_info(), 1)
+        Assert Exists('#vital-Neon-delete-' .. id)
+        close
+        Assert True(hlget('VitalNeon' .. id)[0]['cleared'])
+        Assert LengthOf(timer_info(), 0)
+        Assert NotExists('#vital-Neon-delete-' .. id)
+      End
+    End
+
+    Context after the neon is deleted after playing {flow}
+      It cleans up internal stuffs
+        let id = Neon.add([['Foo', 100]], 'foo')
+        Assert HasKey(hlget('VitalNeon' .. id)[0], 'linksto')
+        Assert LengthOf(timer_info(), 1)
+        Assert Exists('#vital-Neon-delete-' .. id)
+        sleep 200m
+        Assert True(hlget('VitalNeon' .. id)[0]['cleared'])
+        Assert LengthOf(timer_info(), 0)
+        Assert NotExists('#vital-Neon-delete-' .. id)
+      End
+    End
+  End
+
+  Describe .delete({id} [, {context}])
+    Context when {id} is valid
+      It deletes the neon
+        let id = Neon.add([['Foo', 100]], 'foo')
+        call Neon.add([['Bar', 100]], 'bar')
+        Assert LengthOf(GetPatternTypeMatches('foo'), 1)
+        Assert LengthOf(GetPatternTypeMatches('bar'), 1)
+        call Neon.delete(id)
+        Assert LengthOf(GetPatternTypeMatches('foo'), 0)
+        Assert LengthOf(GetPatternTypeMatches('bar'), 1)
+      End
+    End
+
+    Context when {id} is invalid
+      It spews an error
+        let id = Neon.add([['Foo', 100]], 'foo')
+        Throw /^vital: Neon: ID not found: \d\+$/ Neon.delete(id + 123)
+      End
+    End
+
+    Context when {context} is not specified
+      Context when the neon has a callback
+        It invokes the callback with 0 for the second argument
+          function s:callback(_, context) abort
+            let g:context = a:context
+          endfunction
+          let id = Neon.add([['Foo', 100]], 'foo', {'callback': funcref('s:callback')})
+          call Neon.delete(id)
+          Assert Equals(g:context, 2)
+          delfunction s:callback
+          unlet g:context
+        End
+      End
+
+      Context when the neon does not have a callback
+        It does not invoke any callback (of course!), no error
+          let id = Neon.add([['Foo', 100]], 'foo')
+          call Neon.delete(id)
+        End
+      End
+    End
+
+    Context when {context} is specified
+      Context when the neon has a callback
+        It invokes the callback with {context} for the second argument
+          function s:callback(_, context) abort
+            let g:context = a:context
+          endfunction
+          let id = Neon.add([['Foo', 100]], 'foo', {'callback': funcref('s:callback')})
+          call Neon.delete(id, 123)
+          Assert Equals(g:context, 123)
+          delfunction s:callback
+          unlet g:context
+        End
+      End
+
+      Context when the neon does not have a callback
+        It does not invoke any callback (of course!), no error
+          let id = Neon.add([['Foo', 100]], 'foo')
+          call Neon.delete(id, 123)
+        End
+      End
+    End
+
+    It cleans up internal stuffs
+      let id = Neon.add([['Foo', 100]], 'foo')
+      Assert HasKey(hlget('VitalNeon' .. id)[0], 'linksto')
+      Assert LengthOf(timer_info(), 1)
+      Assert Exists('#vital-Neon-delete-' .. id)
+      call Neon.delete(id)
+      Assert True(hlget('VitalNeon' .. id)[0]['cleared'])
+      Assert LengthOf(timer_info(), 0)
+      Assert NotExists('#vital-Neon-delete-' .. id)
+    End
+  End
+
+  Describe .clear_all()
+    It clears all neons
+      call Neon.add([['Foo', 100]], 'foo')
+      call Neon.add([['Bar', 100]], 'bar')
+      call Neon.add([['Baz', 100]], 'baz')
+      Assert LengthOf(getmatches(), 3)
+      call Neon.clear_all()
+      Assert LengthOf(getmatches(), 0)
+    End
+
+    It does not trigger the callback of a neon
+      let g:called = v:false
+      function s:callback(...) abort
+        let g:called = v:true
+      endfunction
+      call Neon.add([['Foo', 100]], 'foo', {'callback': funcref('s:callback')})
+      call Neon.clear_all()
+      Assert False(g:called)
+      unlet g:called
+      delfunction s:callback
+    End
+  End
+End
